@@ -1,0 +1,93 @@
+services:
+  stun_server:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    container_name: stun_server
+    networks:
+      - public
+    ports:
+      - "8090:8090"
+
+  nat1_gateway:
+    image: alpine:latest
+    container_name: nat1_gateway
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.ip_forward=1
+    networks:
+      - nat1
+      - public
+    command: >
+      sh -c "
+        apk add --no-cache iptables &&
+        # Assume eth0 is nat1 and eth1 is public
+        iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE &&
+        iptables -A FORWARD -i eth0 -o eth1 -j ACCEPT &&
+        iptables -A FORWARD -i eth1 -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT &&
+        tail -f /dev/null
+      "
+    depends_on:
+      - stun_server
+
+  peer1:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    container_name: peer1
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - nat1
+    depends_on:
+      - nat1_gateway
+
+  nat2_gateway:
+    image: alpine:latest
+    container_name: nat2_gateway
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.ip_forward=1
+    networks:
+      - nat2
+      - public
+    command: >
+      sh -c "
+        apk add --no-cache iptables &&
+        # Assume eth0 is nat2 and eth1 is public
+        iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE &&
+        iptables -A FORWARD -i eth0 -o eth1 -j ACCEPT &&
+        iptables -A FORWARD -i eth1 -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT &&
+        tail -f /dev/null
+      "
+    depends_on:
+      - stun_server
+
+  peer2:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    container_name: peer2
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - nat2
+    depends_on:
+      - nat2_gateway
+
+networks:
+  nat1:
+    driver: bridge
+  nat2:
+    driver: bridge
+  public:
+    driver: bridge
+
+# The following command can't be used in the compose.yaml file.
+# When the container is running, run the following command to set the default gateway
+# it will set the peer1's default gateway to nat1_gateway and also it should be run on peer2 with nat2_gateway
+# GATEWAY_IP=$(getent hosts nat1_gateway | awk '{print $1}') &&
+#         ip route del default &&
+#         ip route add default via $GATEWAY_IP
