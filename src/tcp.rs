@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use futures::{SinkExt, StreamExt};
 use log::info;
@@ -54,7 +54,7 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
         let nat_addr: SocketAddr = msg.get("address").unwrap().parse().unwrap();
         info!("Received address: {}", nat_addr);
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(2);
+        let (tx, rx) = tokio::sync::oneshot::channel();
 
         tokio::spawn(async move {
             let stream = loop {
@@ -80,34 +80,48 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
                     }
                 }
             };
-            tx.send(()).await.unwrap();
+            tx.send(()).unwrap();
+
             if let Ok(stream) = stream {
                 let remote_addr = stream.peer_addr().unwrap();
                 info!("remote addr: {}", remote_addr);
-
                 let mut stream = Framed::new(stream, LengthDelimitedCodec::new());
-                stream
-                    .send(bytes::Bytes::from("Hello, world!"))
-                    .await
-                    .unwrap();
-                while let Some(msg) = stream.next().await {
-                    let msg = msg.unwrap();
-                    info!(
-                        "Received message: {:?}, from: {}",
-                        String::from_utf8(msg.to_vec()).unwrap(),
-                        remote_addr
-                    );
+                loop {
+                    stream
+                        .send(bytes::Bytes::from("Hello, world!"))
+                        .await
+                        .unwrap();
+
+                    match tokio::time::timeout(Duration::from_millis(200), stream.next()).await {
+                        Ok(Some(Ok(msg))) => {
+                            let msg = msg.to_vec();
+                            info!(
+                                "Received message: {:?}, from: {}",
+                                String::from_utf8(msg).unwrap(),
+                                remote_addr
+                            );
+                        }
+                        Ok(None) => {
+                            info!("Connection closed by remote: {}", remote_addr);
+                            break;
+                        }
+                        Ok(Some(Err(err))) => {
+                            info!("Failed to receive message: {}", err);
+                            break;
+                        }
+                        Err(_) => {
+                            continue;
+                        }
+                    }
                 }
             }
         });
 
-        rx.recv().await.unwrap();
+        rx.await.unwrap();
 
         stream
             .send(bytes::Bytes::from("NAT traversal complete!"))
             .await
             .unwrap();
-
-        rx.recv().await.unwrap();
     }
 }
