@@ -54,7 +54,7 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
         let nat_addr: SocketAddr = msg.get("address").unwrap().parse().unwrap();
         info!("Received address: {}", nat_addr);
 
-        let (tx, rx) = tokio::sync::oneshot::channel();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(2);
 
         tokio::spawn(async move {
             let stream = loop {
@@ -80,9 +80,10 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
                     }
                 }
             };
-            tx.send(()).unwrap();
+            tx.send(()).await.unwrap();
             if let Ok(stream) = stream {
-                info!("remote addr: {}", stream.peer_addr().unwrap());
+                let remote_addr = stream.peer_addr().unwrap();
+                info!("remote addr: {}", remote_addr);
 
                 let mut stream = Framed::new(stream, LengthDelimitedCodec::new());
                 stream
@@ -92,18 +93,21 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
                 while let Some(msg) = stream.next().await {
                     let msg = msg.unwrap();
                     info!(
-                        "Received message: {:?}",
-                        String::from_utf8(msg.to_vec()).unwrap()
+                        "Received message: {:?}, from: {}",
+                        String::from_utf8(msg.to_vec()).unwrap(),
+                        remote_addr
                     );
                 }
             }
         });
 
-        rx.await.unwrap();
+        rx.recv().await.unwrap();
 
         stream
             .send(bytes::Bytes::from("NAT traversal complete!"))
             .await
             .unwrap();
+
+        rx.recv().await.unwrap();
     }
 }
