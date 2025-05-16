@@ -2,7 +2,10 @@ use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use futures::{SinkExt, StreamExt};
 use log::info;
-use tokio::{net::TcpSocket, time};
+use tokio::{
+    net::{TcpSocket, TcpStream},
+    time,
+};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 pub async fn nat_server(addr: SocketAddr) {
@@ -57,7 +60,16 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         tokio::spawn(async move {
+            // Use a fixed interval but add a small amount of randomness
+            let base_retry_interval = Duration::from_millis(200);
+
             let stream = loop {
+                let jitter = Duration::from_millis(rand::random::<u64>() % 50);
+                let actual_interval = if rand::random::<bool>() {
+                    base_retry_interval + jitter
+                } else {
+                    base_retry_interval.saturating_sub(jitter)
+                };
                 let socket = TcpSocket::new_v4().unwrap();
                 socket.set_reuseaddr(true).unwrap();
                 socket.set_reuseport(true).unwrap();
@@ -66,19 +78,23 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
                 match time::timeout(time::Duration::from_millis(200), socket.connect(nat_addr))
                     .await
                 {
-                    Ok(Ok(stream)) => break Ok(stream),
+                    Ok(Ok(stream)) => {
+                        if let Err(err) = check_connection(&stream) {
+                            info!("Failed to connect to NAT(base check): {}", err);
+                        }
+                        break Ok(stream);
+                    }
                     Err(err) => {
-                        info!("Failed to connect to NAT: {}", err);
-                        continue;
+                        info!("Failed to connect to NAT(timeout): {}", err);
                     }
                     Ok(Err(err)) => {
                         if err.kind() == std::io::ErrorKind::AddrNotAvailable {
                             break Err(err);
                         }
-                        info!("Failed to connect to NAT: {}, {}", err.kind(), err);
-                        continue;
+                        info!("Failed to connect to NAT(other): {}, {}", err.kind(), err);
                     }
                 }
+                time::sleep(actual_interval).await;
             };
             tx.send(()).unwrap();
 
@@ -123,5 +139,13 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
             .send(bytes::Bytes::from("NAT traversal complete!"))
             .await
             .unwrap();
+    }
+}
+
+fn check_connection(stream: &TcpStream) -> Result<(), std::io::Error> {
+    match stream.take_error() {
+        Ok(Some(err)) => Err(err),
+        Ok(None) => Ok(()),
+        Err(err) => Err(err),
     }
 }
