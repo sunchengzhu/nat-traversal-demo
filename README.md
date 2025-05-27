@@ -91,36 +91,91 @@ $ docker-compose up -d
 $ docker exec -it stun_server /bin/bash
 # Get ip
 $ ip addr
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000 
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
     inet 127.0.0.1/8 scope host lo
        valid_lft forever preferred_lft forever
     inet6 ::1/128 scope host 
        valid_lft forever preferred_lft forever
-2: eth0@if736: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
-    link/ether 46:74:32:0a:6b:18 brd ff:ff:ff:ff:ff:ff link-netnsid 0
-    inet 172.20.0.2/16 brd 172.20.255.255 scope global eth0
+2: eth0@if169: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether b6:ab:14:20:e9:fa brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.19.0.2/16 brd 172.19.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fd22:4d56:961b:1::2/64 scope global nodad 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::b4ab:14ff:fe20:e9fa/64 scope link 
        valid_lft forever preferred_lft forever
 # start the service
 $ ./nat-traversal
 ```
 
 2. Configure Client 1's Network
+
 ```bash
+❯ docker exec -it nat1_gateway sh
+/ # ip addr 
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000 
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00 
+    inet 127.0.0.1/8 scope host lo 
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever 
+2: eth0@if170: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP 
+    link/ether 0a:15:73:30:c7:30 brd ff:ff:ff:ff:ff:ff 
+    inet 172.20.0.2/16 brd 172.20.255.255 scope global eth0 
+       valid_lft forever preferred_lft forever 
+    inet6 fd22:4d56:961b:2::2/64 scope global flags 02 
+       valid_lft forever preferred_lft forever 
+    inet6 fe80::815:73ff:fe30:c730/64 scope link 
+       valid_lft forever preferred_lft forever 
+3: eth1@if172: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP 
+    link/ether 42:e9:0d:69:4c:c7 brd ff:ff:ff:ff:ff:ff 
+    inet 172.19.0.3/16 brd 172.19.255.255 scope global eth1 
+       valid_lft forever preferred_lft forever
+    inet6 fd22:4d56:961b:1::3/64 scope global flags 02 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::40e9:dff:fe69:4cc7/64 scope link 
+       valid_lft forever preferred_lft forever
+/ # exit
+
 $ docker exec -it peer1 /bin/bash
-# Set the default gateway (required to connect to the STUN server)
-$ GATEWAY_IP=$(getent hosts nat1_gateway | awk '{print $1}') && \
-         ip route del default && \
-         ip route add default via $GATEWAY_IP
+# Set the default gateway (required to connect to the STUN server), copy nat1_gateway's eth0 address
+$ ip route del default && ip route add default via 172.20.0.2
+$ ip -6 route del default && ip -6 route add default via fd22:4d56:961b:2::2
 ```
 
 3. Configure Client 2's Network
 ```bash
+❯ docker exec -it nat2_gateway sh
+/ # ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0@if171: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP 
+    link/ether 9e:ae:ef:3d:b1:a1 brd ff:ff:ff:ff:ff:ff
+    inet 172.18.0.2/16 brd 172.18.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fd22:4d56:961b::2/64 scope global flags 02 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::9cae:efff:fe3d:b1a1/64 scope link 
+       valid_lft forever preferred_lft forever
+3: eth1@if173: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP 
+    link/ether 12:75:82:61:f6:5e brd ff:ff:ff:ff:ff:ff
+    inet 172.19.0.4/16 brd 172.19.255.255 scope global eth1
+       valid_lft forever preferred_lft forever
+    inet6 fd22:4d56:961b:1::4/64 scope global flags 02 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::1075:82ff:fe61:f65e/64 scope link 
+       valid_lft forever preferred_lft forever
+/ # exit
+
 $ docker exec -it peer2 /bin/bash
-# Set the default gateway
-$ GATEWAY_IP=$(getent hosts nat2_gateway | awk '{print $1}') && \
-         ip route del default && \
-         ip route add default via $GATEWAY_IP
+# Set the default gateway, copy nat2_gateway's eth0 address
+$ ip route del default && ip route add default via 172.18.0.2
+$ ip -6 route del default && ip -6 route add default via fd22:4d56:961b::2
 ```
 
 4. Test NAT Traversal
@@ -129,30 +184,60 @@ Run the following commands on both clients (choose TCP or UDP mode):
 
 #### TCP Mode Testing
 
+1. Traversal with ipv4
+
 ```bash
-$ ./nat-traversal 172.20.0.2:8090
+$ ./nat-traversal 172.19.0.2:8090
 ```
 
 output：
 ```bash
 [2025-03-22T05:37:37Z INFO  nat_traversal_test::tcp] Listening on: 0.0.0.0:32827
-[2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] Received address: 172.20.0.4:40879
+[2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] Received address: [::ffff:172.19.0.4]:40879
 [2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] Failed to connect to NAT: connection refused, Connection refused (os error 111)
-[2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] remote addr: 172.20.0.4:40879
-[2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] Received message: "Hello, world!"
+[2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] Received message: "Hello, world!", from: 172.19.0.4:40879
 ```
 
-#### UDP Mode Testing
+2. Traversal with ipv6
 
 ```bash
-$ ./nat-traversal 172.20.0.2:8090 -p udp
+$ ./nat-traversal [fd22:4d56:961b:1::2]:8090
 ```
 
 output：
 ```bash
-[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received address: 172.20.0.4:54957
-[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received message: Hello, world! from 172.20.0.4:54957
-[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received message: yes from 172.20.0.4:54957
+[2025-03-22T05:37:37Z INFO  nat_traversal_test::tcp] Listening on: [::]:44067
+[2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] Received address: [fd22:4d56:961b:1::3]:44067
+[2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] Failed to connect to NAT: connection refused, Connection refused (os error 111)
+[2025-03-22T05:37:51Z INFO  nat_traversal_test::tcp] Received message: "Hello, world!", from: [fd22:4d56:961b:1::4]:32783
+```
+
+#### UDP Mode Testing
+
+1. Traversal with ipv4
+   
+```bash
+$ ./nat-traversal 172.19.0.2:8090 -p udp
+```
+
+output：
+```bash
+[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received address: [::ffff:172.19.0.4]:54957
+[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received message: Hello, world! from 172.19.0.4:54957
+[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received message: yes from 172.19.0.4:54957
+```
+
+2. Traversal with ipv6
+
+```bash
+$ ./nat-traversal "[fd22:4d56:961b:1::2]:8090" -p udp
+```
+
+output：
+```bash
+[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received address: [::ffff:172.19.0.4]:54957
+[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received message: Hello, world! from [fd22:4d56:961b:1::4]:54957
+[2025-03-22T05:38:32Z INFO  nat_traversal_test::udp] Received message: yes from [fd22:4d56:961b:1::4]:54957
 ```
 
 ### Troubleshooting
@@ -169,5 +254,4 @@ This is a simple demonstration project with the following limitations:
 - Birthday attack port detection is not implemented
 - Complex scenarios like dns64/dns46 are not supported
 - No fallback forwarding when traversal fails
-- IPv6 is not supported
 - Testing in real network environments requires one public server and two servers behind NAT

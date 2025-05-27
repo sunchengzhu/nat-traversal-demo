@@ -41,8 +41,7 @@ fn main() {
 
     let stun_addr = *matches.get_one::<SocketAddr>("address").unwrap();
     if protocol == "tcp" {
-        let stun_addr = std::env::args().nth(1).unwrap().parse().unwrap();
-        let (socket, listen_addr) = create_socket();
+        let (socket, listen_addr) = create_socket(socket2::Domain::for_address(stun_addr));
         rt.spawn(nat_client(socket, stun_addr));
         rt.block_on(nat_server(listen_addr));
     } else if protocol == "udp" {

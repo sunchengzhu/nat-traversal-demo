@@ -1,7 +1,13 @@
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    os::fd::{FromRawFd, IntoRawFd},
+    time::Duration,
+};
 
 use futures::{SinkExt, StreamExt};
 use log::info;
+use socket2::{Domain, Protocol, Socket, Type};
 use tokio::{
     net::{TcpSocket, TcpStream},
     time,
@@ -9,9 +15,15 @@ use tokio::{
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 pub async fn nat_server(addr: SocketAddr) {
-    let socket = TcpSocket::new_v4().unwrap();
-    socket.set_reuseaddr(true).unwrap();
-    socket.set_reuseport(true).unwrap();
+    let domain = Domain::for_address(addr);
+    let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP)).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    socket.set_reuse_port(true).unwrap();
+    if domain == Domain::IPV6 {
+        socket.set_only_v6(false).unwrap();
+    }
+    socket.set_nonblocking(true).unwrap();
+    let socket = unsafe { TcpSocket::from_raw_fd(socket.into_raw_fd()) };
     socket.bind(addr).unwrap();
     let listener = socket.listen(1024).unwrap();
     info!("Listening on: {}", addr);
@@ -37,17 +49,27 @@ pub async fn nat_server(addr: SocketAddr) {
     }
 }
 
-pub fn create_socket() -> (TcpSocket, SocketAddr) {
-    let socket = TcpSocket::new_v4().unwrap();
-    socket.set_reuseaddr(true).unwrap();
-    socket.set_reuseport(true).unwrap();
-    socket.bind("0.0.0.0:0".parse().unwrap()).unwrap();
+pub fn create_socket(domain: Domain) -> (TcpSocket, SocketAddr) {
+    let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP)).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    socket.set_reuse_port(true).unwrap();
+    if domain == Domain::IPV6 {
+        socket.set_only_v6(false).unwrap();
+    }
+    socket.set_nonblocking(true).unwrap();
+    let socket = unsafe { TcpSocket::from_raw_fd(socket.into_raw_fd()) };
+    match domain {
+        Domain::IPV4 => socket.bind("0.0.0.0:0".parse().unwrap()).unwrap(),
+        Domain::IPV6 => socket.bind("[::]:0".parse().unwrap()).unwrap(),
+        _ => panic!("Unsupported domain"),
+    };
     let addr = socket.local_addr().unwrap();
     (socket, addr)
 }
 
 pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
     let listen_addr = socket.local_addr().unwrap();
+    let domain = Domain::for_address(addr);
     let stream = socket.connect(addr).await.unwrap();
     let mut stream = Framed::new(stream, LengthDelimitedCodec::new());
 
@@ -56,6 +78,11 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
         let msg = serde_json::from_slice::<HashMap<String, String>>(&msg).unwrap();
         let nat_addr: SocketAddr = msg.get("address").unwrap().parse().unwrap();
         info!("Received address: {}", nat_addr);
+        let nat_addr = match domain {
+            Domain::IPV4 => SocketAddr::new(nat_addr.ip().to_canonical(), nat_addr.port()),
+            Domain::IPV6 => nat_addr,
+            _ => panic!("Unsupported domain"),
+        };
 
         let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -70,9 +97,14 @@ pub async fn nat_client(socket: TcpSocket, addr: SocketAddr) {
                 } else {
                     base_retry_interval.saturating_sub(jitter)
                 };
-                let socket = TcpSocket::new_v4().unwrap();
-                socket.set_reuseaddr(true).unwrap();
-                socket.set_reuseport(true).unwrap();
+                let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP)).unwrap();
+                socket.set_reuse_address(true).unwrap();
+                socket.set_reuse_port(true).unwrap();
+                if domain == Domain::IPV6 {
+                    socket.set_only_v6(false).unwrap();
+                }
+                socket.set_nonblocking(true).unwrap();
+                let socket = unsafe { TcpSocket::from_raw_fd(socket.into_raw_fd()) };
                 socket.bind(listen_addr).unwrap();
 
                 match time::timeout(time::Duration::from_millis(200), socket.connect(nat_addr))

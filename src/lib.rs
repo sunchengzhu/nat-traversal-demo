@@ -4,19 +4,21 @@ pub mod udp;
 use std::{
     collections::HashMap,
     net::SocketAddr,
+    os::fd::{FromRawFd, IntoRawFd},
     sync::{Arc, LazyLock, Mutex},
     time::Duration,
 };
 
 use futures::{SinkExt, StreamExt};
 use log::info;
+use socket2::{Domain, Protocol, Socket, Type};
 use tokio::{
     net::{TcpSocket, TcpStream, UdpSocket},
     time,
 };
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
-const ADDR: &str = "0.0.0.0:8090";
+const ADDR: &str = "[::]:8090";
 static GLOBAL_STATE: LazyLock<Mutex<HashMap<usize, SocketAddr>>> =
     LazyLock::new(|| Mutex::new(HashMap::default()));
 
@@ -67,9 +69,12 @@ impl StunSession {
 }
 
 pub async fn tcp_stun_server() {
-    let socket = TcpSocket::new_v4().unwrap();
-    socket.set_reuseaddr(true).unwrap();
-    socket.set_reuseport(true).unwrap();
+    let socket = Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP)).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    socket.set_reuse_port(true).unwrap();
+    socket.set_only_v6(false).unwrap();
+    socket.set_nonblocking(true).unwrap();
+    let socket = unsafe { TcpSocket::from_raw_fd(socket.into_raw_fd()) };
     socket.bind(ADDR.parse().unwrap()).unwrap();
     let listener = socket.listen(1024).unwrap();
     info!("Tcp listening on: {}", ADDR);
@@ -94,11 +99,12 @@ pub async fn tcp_stun_server() {
 
 pub async fn udp_stun_server() {
     let socket = socket2::Socket::new(
-        socket2::Domain::IPV4,
+        socket2::Domain::IPV6,
         socket2::Type::DGRAM,
         Some(socket2::Protocol::UDP),
     )
     .unwrap();
+    socket.set_only_v6(false).unwrap();
     socket.set_reuse_port(true).unwrap();
     socket.set_reuse_address(true).unwrap();
     socket

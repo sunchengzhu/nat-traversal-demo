@@ -4,17 +4,20 @@ use log::info;
 use tokio::net::UdpSocket;
 
 pub async fn nat_client(addr: SocketAddr) {
-    let socket = socket2::Socket::new(
-        socket2::Domain::IPV4,
-        socket2::Type::DGRAM,
-        Some(socket2::Protocol::UDP),
-    )
-    .unwrap();
+    let domain = socket2::Domain::for_address(addr);
+    let socket =
+        socket2::Socket::new(domain, socket2::Type::DGRAM, Some(socket2::Protocol::UDP)).unwrap();
     socket.set_reuse_port(true).unwrap();
     socket.set_reuse_address(true).unwrap();
-    socket
-        .bind(&"0.0.0.0:0".parse::<SocketAddr>().unwrap().into())
-        .unwrap();
+    if domain == socket2::Domain::IPV6 {
+        socket.set_only_v6(false).unwrap();
+    }
+    let bind_addr = match domain {
+        socket2::Domain::IPV4 => "0.0.0.0:0".parse::<SocketAddr>().unwrap(),
+        socket2::Domain::IPV6 => "[::]:0".parse::<SocketAddr>().unwrap(),
+        _ => panic!("Unsupported domain"),
+    };
+    socket.bind(&bind_addr.into()).unwrap();
     socket.set_nonblocking(true).unwrap();
 
     let sock = Arc::new(UdpSocket::from_std(socket.into()).unwrap());
@@ -44,6 +47,11 @@ pub async fn nat_client(addr: SocketAddr) {
     // 255 from 2^16 - 1024 can achieve a success rate of 60%+. This is an effective port sniffing method.
     let nat_addr: SocketAddr = msg.parse().unwrap();
     info!("Received address: {}", nat_addr);
+    let nat_addr = match domain {
+        socket2::Domain::IPV4 => SocketAddr::new(nat_addr.ip().to_canonical(), nat_addr.port()),
+        socket2::Domain::IPV6 => nat_addr,
+        _ => panic!("Unsupported domain"),
+    };
 
     loop {
         sock.send_to(b"Hello, world!", nat_addr).await.unwrap();
