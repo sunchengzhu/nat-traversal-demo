@@ -8,6 +8,10 @@ services:
       - public
     ports:
       - "8090:8090"
+    environment:
+      - CKB_CHAIN=dev
+      - API_URL=http://127.0.0.1:8114
+    command: [ "run" ]
 
   nat1_gateway:
     image: alpine:latest
@@ -46,6 +50,10 @@ services:
       - nat1
     depends_on:
       - nat1_gateway
+    environment:
+      - CKB_CHAIN=dev
+      - API_URL=http://127.0.0.1:8114
+    command: [ "run" ]
 
   nat2_gateway:
     image: alpine:latest
@@ -84,6 +92,10 @@ services:
       - nat2
     depends_on:
       - nat2_gateway
+    environment:
+      - CKB_CHAIN=dev
+      - API_URL=http://127.0.0.1:8114
+    command: [ "run" ]
 
 networks:
   nat1:
