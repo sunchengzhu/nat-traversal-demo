@@ -38,6 +38,19 @@ jobs:
 
       - name: Check IP Prefixes and Reconfigure Routing
         run: |
+          extract_ipv6_prefix() {
+            ip=$1
+            echo "$ip" | awk -F':' '{
+              for (i=1; i<=4; i++) {
+                if ($i == "") {
+                  for (j=1; j<=(8 - NF + 1); j++) printf "0000:"
+                } else {
+                  printf "%04x:", strtonum("0x"$i)
+                }
+              }
+            }' | sed 's/:$//'
+          }
+          
           for attempt in {1..10}; do
             echo "Attempt $attempt to get non-overlapping IPs..."
 
@@ -52,51 +65,53 @@ jobs:
             echo "nat1_gateway_ip6: $nat1_gateway_ip6"
             echo "nat2_gateway_ip6: $nat2_gateway_ip6"
 
-#            prefix1=$(echo "$stun_server_ip4" | cut -d'.' -f1,2)
-#            prefix2=$(echo "$nat1_gateway_ip4" | cut -d'.' -f1,2)
-#            prefix3=$(echo "$nat2_gateway_ip4" | cut -d'.' -f1,2)
-#
-#            if [ "$prefix1" != "$prefix2" ] && [ "$prefix1" != "$prefix3" ] && [ "$prefix2" != "$prefix3" ]; then
-#              echo "All IP prefixes are unique: $prefix1, $prefix2, $prefix3"
-#              break
-#            fi
-#
-#            echo "Duplicate prefixes detected ($prefix1, $prefix2, $prefix3). Restarting containers..."
-#            docker compose down --remove-orphans
-#            docker compose up -d
-#
-#            echo "Waiting for stun_server to be ready..."
-#            for i in {1..10}; do
-#            docker exec stun_server /bin/ckb --version && break
-#            echo "Retry $i: not ready yet"
-#              sleep 3
-#              done
-#
-#            docker exec stun_server /bin/ckb --version || {
-#              echo "stun_server failed to start"
-#              exit 1
-#            }
-#
-#            if [ "$attempt" = "10" ]; then
-#              echo "Failed to get unique IP prefixes after 10 attempts. Exiting."
-#              exit 1
-#            fi
-#          done
-#
-#          echo "Setting up routing..."
-#          docker exec peer1 sh -c "ip route del default && ip route add default via $nat1_gateway_ip4"
-#          docker exec peer2 sh -c "ip route del default && ip route add default via $nat2_gateway_ip4"
-#
-#          docker exec peer1 sh -c "ip route"
-#          docker exec peer2 sh -c "ip route"
-#
-#          echo "stun_server_node_id=$stun_server_node_id" >> "$GITHUB_ENV"
-#          echo "stun_server_ip4=$stun_server_ip4" >> "$GITHUB_ENV"
+            prefix1=$(extract_ipv6_prefix "$stun_server_ip6")
+            prefix2=$(extract_ipv6_prefix "$nat1_gateway_ip6")
+            prefix3=$(extract_ipv6_prefix "$nat2_gateway_ip6")
 
-#      - name: Ping stun_server from peer1 and peer2
-#        run: |
-#          docker exec peer1 ping -c 4 ${{ env.stun_server_ip4 }}
-#          docker exec peer2 ping -c 4 ${{ env.stun_server_ip4 }}
+            echo "Prefixes: $prefix1 | $prefix2 | $prefix3"
+
+            if [ "$prefix1" != "$prefix2" ] && [ "$prefix1" != "$prefix3" ] && [ "$prefix2" != "$prefix3" ]; then
+              echo "All IP prefixes are unique: $prefix1, $prefix2, $prefix3"
+              break
+            fi
+
+            echo "Duplicate prefixes detected ($prefix1, $prefix2, $prefix3). Restarting containers..."
+            docker compose down --remove-orphans
+            docker compose up -d
+
+            echo "Waiting for stun_server to be ready..."
+            for i in {1..10}; do
+            docker exec stun_server /bin/ckb --version && break
+            echo "Retry $i: not ready yet"
+              sleep 3
+              done
+
+            docker exec stun_server /bin/ckb --version || {
+              echo "stun_server failed to start"
+              exit 1
+            }
+
+            if [ "$attempt" = "10" ]; then
+              echo "Failed to get unique IP prefixes after 10 attempts. Exiting."
+              exit 1
+            fi
+          done
+
+          echo "Setting up routing..."
+          docker exec peer1 sh -c "ip -6 route del default && ip -6 route add default via $nat1_gateway_ip6"
+          docker exec peer2 sh -c "ip -6 route del default && ip -6 route add default via $nat2_gateway_ip6"
+
+          docker exec peer1 sh -c "ip -6 route"
+          docker exec peer2 sh -c "ip -6 route"
+
+          echo "stun_server_node_id=$stun_server_node_id" >> "$GITHUB_ENV"
+          echo "stun_server_ip6=$stun_server_ip6" >> "$GITHUB_ENV"
+
+      - name: Ping stun_server from peer1 and peer2
+        run: |
+          docker exec peer1 ping6 -c 4 ${{ env.stun_server_ip6 }}
+          docker exec peer2 ping6 -c 4 ${{ env.stun_server_ip6 }}
 #
 #      - name: Add stun_server to peer1 and peer2
 #        run: |
