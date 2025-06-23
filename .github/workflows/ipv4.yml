@@ -54,7 +54,7 @@ jobs:
             echo "Duplicate prefixes detected ($prefix1, $prefix2, $prefix3). Restarting containers..."
             docker compose down --remove-orphans
             docker compose up -d
-          
+
             echo "Waiting for stun_server to be ready..."
             for i in {1..10}; do
             docker exec stun_server /bin/ckb --version && break
@@ -79,10 +79,9 @@ jobs:
 
           docker exec peer1 sh -c "ip route"
           docker exec peer2 sh -c "ip route"
-          
+
           echo "stun_server_node_id=$stun_server_node_id" >> "$GITHUB_ENV"
           echo "stun_server_ip4=$stun_server_ip4" >> "$GITHUB_ENV"
-          
 
       - name: Ping stun_server from peer1 and peer2
         run: |
@@ -102,7 +101,7 @@ jobs:
                 "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
               ]
             }'
-          
+
           docker exec peer2 curl -X POST http://127.0.0.1:8114 \
             -H 'Content-Type: application/json' \
             -d '{
@@ -145,83 +144,14 @@ jobs:
 
       - name: Wait for 'success' in Peer1 Logs (Retry with Hole Punching)
         run: |
-          for attempt in {1..10}; do
-            echo "Attempt $attempt: waiting 60 seconds..."
-            sleep 60
-          
-            echo "Checking last 20 lines of peer1 logs:"
-            docker logs peer1 --tail 20 || true
-          
-            if docker logs peer1 --tail 20 2>/dev/null | grep -q "success"; then
-              echo "'success' found in peer1 logs. Done."
-              break
-            fi
-          
-            echo "'success' not found in logs. Restarting containers and redoing hole punching..."
-            docker compose restart || true
-          
-            echo "Waiting for stun_server to be ready..."
-            for i in {1..10}; do
-              docker exec stun_server /bin/ckb --version && break
-              echo "Retry $i: stun_server not ready yet"
-              sleep 3
-            done
-          
-            docker exec stun_server /bin/ckb --version || {
-              echo "stun_server failed to start after restart"
-              exit 1
-            }
-          
-            stun_server_ip4=$(docker exec stun_server ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
-            nat1_gateway_ip4=$(docker exec nat1_gateway ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
-            nat2_gateway_ip4=$(docker exec nat2_gateway ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
+          sleep 60
 
-            echo "stun_server_ip4: $stun_server_ip4"
-            echo "nat1_gateway_ip4: $nat1_gateway_ip4"
-            echo "nat2_gateway_ip4: $nat2_gateway_ip4"
-          
-            echo "Adding stun_server as peer to peer1 and peer2..."
-            docker exec peer1 curl -X POST http://127.0.0.1:8114 \
-              -H 'Content-Type: application/json' \
-              -d '{
-            "id": 1,
-            "jsonrpc": "2.0",
-            "method": "add_node",
-            "params": [
-              "'"${{ env.stun_server_node_id }}"'",
-              "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
-            ]
-            }' || true
-          
-            docker exec peer2 curl -X POST http://127.0.0.1:8114 \
-              -H 'Content-Type: application/json' \
-              -d '{
-            "id": 1,
-            "jsonrpc": "2.0",
-            "method": "add_node",
-            "params": [
-              "'"${{ env.stun_server_node_id }}"'",
-              "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
-            ]
-            }' || true
-          
-            echo "Checking peers:"
-            docker exec peer1 ./ckb-cli rpc get_peers | grep address: || true
-            docker exec peer2 ./ckb-cli rpc get_peers | grep address: || true
-          
-            echo "Redoing hole punching from peer1 to peer2..."
-            docker exec peer1 curl -X POST http://127.0.0.1:8114 \
-              -H 'Content-Type: application/json' \
-              -d '{
-                "id": 2,
-                "jsonrpc": "2.0",
-                "method": "hole_punching",
-                "params": ["'"${{ env.peer2_node_id }}"'"]
-              }' || true
-            echo
-          
-            if [ "$attempt" = "10" ]; then
-              echo "Failed to find 'success' in peer1 logs after 10 attempts. Exiting."
-              exit 1
-            fi
-          done
+          echo "Checking last 20 lines of peer1 logs:"
+          docker logs peer1 --tail 20 || true
+
+          if docker logs peer1 --tail 20 2>/dev/null | grep -q "success"; then
+            echo "'success' found in peer1 logs. Done."
+          else
+            echo "'success' not found in logs. Failing now."
+            exit 1
+          fi
