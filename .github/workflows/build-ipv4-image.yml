@@ -33,6 +33,29 @@ jobs:
         working-directory: ./ckb
         run: git log -1
 
+      - name: Replace docker-entrypoint.sh
+        working-directory: ./ckb
+        run: |
+          cat > docker/docker-entrypoint.sh <<'EOF'
+          #!/bin/sh
+          
+          if [ "${1:-}" = "run" ] && ! [ -f ckb.toml ]; then
+            /bin/ckb init --chain "$CKB_CHAIN"
+            sed -i 's/^message = ".*"/message = "1747741045261"/' specs/dev.toml
+            sed -i 's/^filter = "info"$/filter = "info,ckb-network=debug"/' ckb.toml
+            sed -i 's/modules = \["Net", "Pool", "Miner", "Chain", "Stats", "Subscription", "Experiment", "Debug"\]/modules = \["Net", "Pool", "Miner", "Chain", "Stats", "Subscription", "Experiment", "Debug", "IntegrationTest"\]/' ckb.toml
+            sed -i \
+              -e 's/^# \[block_assembler\]/[block_assembler]/' \
+              -e 's/^# code_hash = .*/code_hash = "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8"/' \
+              -e 's/^# args = .*/args = "0x1450a57f785967353b459d7a8b2248fa437c4c2f"/' \
+              -e 's/^# hash_type = .*/hash_type = "type"/' \
+              -e 's/^# message = .*/message = "0x"/' \
+              ckb.toml
+          fi
+          
+          exec /bin/ckb "$@"
+          EOF
+
       - name: Build docker image
         working-directory: ./ckb
         run: make docker
