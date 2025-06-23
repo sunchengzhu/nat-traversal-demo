@@ -156,8 +156,8 @@ jobs:
             echo "Checking last 20 lines of peer1 logs (attempt $attempt):"
             docker logs peer1 --tail 20 || true
 
-            if docker logs peer1 --tail 20 2>/dev/null | grep -q "success"; then
-              echo "'success' found in peer1 logs. Done."
+            if docker logs peer1 --tail 20 2>/dev/null | grep -q "NAT traversal success"; then
+              echo "'NAT traversal success' found in peer1 logs. Done."
               exit 0
             fi
 
@@ -177,3 +177,9 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Get peers on all nodes again
+        run: |
+          docker exec peer1 ./ckb-cli rpc get_peers | grep address:
+          docker exec peer2 ./ckb-cli rpc get_peers | grep address:
+          docker exec stun_server ./ckb-cli rpc get_peers | grep address:
