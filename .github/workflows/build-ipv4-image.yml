@@ -32,3 +32,30 @@ jobs:
       - name: Show latest commit
         working-directory: ./ckb
         run: git log -1
+
+      - name: Build docker image
+        working-directory: ./ckb
+        run: make docker
+
+      - name: Show docker images
+        run: docker images
+
+      - name: Login to Aliyun Docker Registry
+        env:
+          DOCKER_PASSWORD: CkbSync02
+        run: |
+          echo "$DOCKER_PASSWORD" | docker login --username "肥宅小竹" --password-stdin registry.cn-hangzhou.aliyuncs.com
+
+      - name: Tag and push image
+        run: |
+          VERSION=${{ github.event.inputs.ckb_version }}
+          REMOTE_TAG="registry.cn-hangzhou.aliyuncs.com/scz996/ckb:${VERSION}-ipv4"
+
+          # 获取本地构建出来的镜像 ID（nervos/ckb 是 make docker 生成的）
+          IMAGE_ID=$(docker images | grep 'nervos/ckb' | awk '{print $3}' | head -n 1)
+
+          echo "Using image ID: $IMAGE_ID"
+          echo "Tagging as: $REMOTE_TAG"
+
+          docker tag "$IMAGE_ID" "$REMOTE_TAG"
+          docker push "$REMOTE_TAG"
