@@ -1,4 +1,4 @@
-name: ipv4
+name: IPv4
 
 on:
   workflow_dispatch:

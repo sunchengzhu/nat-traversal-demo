@@ -3,7 +3,7 @@ WORKDIR /usr/src/nat-traversal
 COPY . .
 RUN cargo build --release
 
-FROM registry.cn-hangzhou.aliyuncs.com/scz996/ckb:test-hole-punching as ckb-image
+FROM registry.cn-hangzhou.aliyuncs.com/scz996/ckb:0.202.0-ipv4 as ckb-image
 
 FROM rust:1.85.0
 RUN apt-get update && apt-get install -y sudo curl tcpdump iptables iproute2 dnsutils iputils-ping && rm -rf /var/lib/apt/lists/* && update-alternatives --set iptables /usr/sbin/iptables-legacy
