@@ -40,15 +40,8 @@ jobs:
         run: |
           extract_ipv6_prefix() {
             ip=$1
-            echo "$ip" | awk -F':' '{
-              for (i=1; i<=4; i++) {
-                if ($i == "") {
-                  for (j=1; j<=(8 - NF + 1); j++) printf "0000:"
-                } else {
-                  printf "%04x:", strtonum("0x"$i)
-                }
-              }
-            }' | sed 's/:$//'
+            expanded=$(python3 -c "import ipaddress; print(ipaddress.IPv6Address(u'$ip').exploded)")
+            echo "$expanded" | cut -d':' -f1-4 | tr '[:lower:]' '[:upper:]'
           }
           
           for attempt in {1..10}; do
