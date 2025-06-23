@@ -171,6 +171,7 @@ jobs:
                   "method": "hole_punching",
                   "params": ["'"${{ env.peer2_node_id }}"'"]
                 }' || true
+              echo
             else
               echo "'success' not found after 3 attempts. Exiting with failure."
               exit 1
