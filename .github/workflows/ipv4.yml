@@ -144,13 +144,13 @@ jobs:
 
       - name: Wait for 'success' in Peer1 Logs (Retry with Hole Punching)
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4; do
             if [ "$attempt" = "1" ]; then
               echo "Initial wait: 60 seconds..."
               sleep 60
             else
               echo "Waiting 5 minutes before retrying (attempt $attempt)..."
-              sleep 300
+              sleep 305
             fi
 
             echo "Checking last 20 lines of peer1 logs (attempt $attempt):"
@@ -161,7 +161,7 @@ jobs:
               exit 0
             fi
 
-            if [ "$attempt" -lt 3 ]; then
+            if [ "$attempt" -lt 4 ]; then
               echo "'success' not found. Re-executing hole punching..."
               docker exec peer1 curl -X POST http://127.0.0.1:8114 \
                 -H 'Content-Type: application/json' \
