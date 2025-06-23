@@ -12,7 +12,6 @@ jobs:
 
       - name: Start Containers
         run: |
-          docker compose down --rmi all
           docker compose up -d
 
           echo "Waiting for stun_server to be ready..."
@@ -27,20 +26,42 @@ jobs:
             exit 1
           }
 
-      - name: Configure Routing
+      - name: Check IP Prefixes and Reconfigure Routing
         run: |
-          stun_server_node_id=$(docker exec stun_server ./ckb-cli rpc local_node_info | grep node_id | awk '{print $2}')
-          echo "$stun_server_node_id"
+          for attempt in {1..10}; do
+            echo "Attempt $attempt to get non-overlapping IPs..."
 
-          stun_server_ip4=$(docker exec stun_server ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
-          echo "$stun_server_ip4"
+            stun_server_node_id=$(docker exec stun_server ./ckb-cli rpc local_node_info | grep node_id | awk '{print $2}')
+            echo "stun_server_node_id: $stun_server_node_id"
 
-          nat1_gateway_ip4=$(docker exec nat1_gateway ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
-          echo "$nat1_gateway_ip4"
+            stun_server_ip4=$(docker exec stun_server ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
+            nat1_gateway_ip4=$(docker exec nat1_gateway ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
+            nat2_gateway_ip4=$(docker exec nat2_gateway ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
 
-          nat2_gateway_ip4=$(docker exec nat2_gateway ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
-          echo "$nat2_gateway_ip4"
+            echo "stun_server_ip4: $stun_server_ip4"
+            echo "nat1_gateway_ip4: $nat1_gateway_ip4"
+            echo "nat2_gateway_ip4: $nat2_gateway_ip4"
 
+            prefix1=$(echo "$stun_server_ip4" | cut -d'.' -f1,2)
+            prefix2=$(echo "$nat1_gateway_ip4" | cut -d'.' -f1,2)
+            prefix3=$(echo "$nat2_gateway_ip4" | cut -d'.' -f1,2)
+
+            if [ "$prefix1" != "$prefix2" ] && [ "$prefix1" != "$prefix3" ] && [ "$prefix2" != "$prefix3" ]; then
+              echo "All IP prefixes are unique: $prefix1, $prefix2, $prefix3"
+              break
+            fi
+
+            echo "Duplicate prefixes detected ($prefix1, $prefix2, $prefix3). Restarting containers..."
+            docker compose down --remove-orphans
+            docker compose up -d
+
+            if [ "$attempt" = "10" ]; then
+              echo "Failed to get unique IP prefixes after 10 attempts. Exiting."
+              exit 1
+            fi
+          done
+
+          echo "Setting up routing..."
           docker exec peer1 sh -c "ip route del default && ip route add default via $nat1_gateway_ip4"
           docker exec peer2 sh -c "ip route del default && ip route add default via $nat2_gateway_ip4"
 
