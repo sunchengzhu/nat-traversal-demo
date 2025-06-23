@@ -54,6 +54,18 @@ jobs:
             echo "Duplicate prefixes detected ($prefix1, $prefix2, $prefix3). Restarting containers..."
             docker compose down --remove-orphans
             docker compose up -d
+          
+            echo "Waiting for stun_server to be ready..."
+            for i in {1..10}; do
+            docker exec stun_server /bin/ckb --version && break
+            echo "Retry $i: not ready yet"
+              sleep 3
+              done
+            
+            docker exec stun_server /bin/ckb --version || {
+              echo "stun_server failed to start"
+              exit 1
+            }
 
             if [ "$attempt" = "10" ]; then
               echo "Failed to get unique IP prefixes after 10 attempts. Exiting."
