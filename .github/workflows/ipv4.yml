@@ -67,3 +67,66 @@ jobs:
 
           docker exec peer1 sh -c "ip route"
           docker exec peer2 sh -c "ip route"
+          
+          echo "stun_server_node_id=$stun_server_node_id" >> "$GITHUB_ENV"
+          echo "stun_server_ip4=$stun_server_ip4" >> "$GITHUB_ENV"
+          
+
+      - name: Ping stun_server from peer1 and peer2
+        run: |
+          docker exec peer1 ping -c 4 ${{ env.stun_server_ip4 }}
+          docker exec peer2 ping -c 4 ${{ env.stun_server_ip4 }}
+
+      - name: Add stun_server to peer1 and peer2
+        run: |
+          docker exec peer1 curl -X POST http://127.0.0.1:8114 \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "id": 1,
+              "jsonrpc": "2.0",
+              "method": "add_node",
+              "params": [
+                "'"${{ env.stun_server_node_id }}"'",
+                "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
+              ]
+            }'
+          
+          docker exec peer2 curl -X POST http://127.0.0.1:8114 \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "id": 1,
+              "jsonrpc": "2.0",
+              "method": "add_node",
+              "params": [
+                "'"${{ env.stun_server_node_id }}"'",
+                "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
+              ]
+            }'
+
+      - name: Generate block on stun_server
+        run: |
+          docker exec stun_server curl -X POST http://127.0.0.1:8114 \
+            -H "Content-Type: application/json" \
+            -d '{"id": 2, "jsonrpc": "2.0", "method": "generate_block", "params": []}'
+
+      - name: Get peers on all nodes
+        run: |
+          docker exec peer1 ./ckb-cli rpc get_peers | grep address:
+          docker exec peer2 ./ckb-cli rpc get_peers | grep address:
+          docker exec stun_server ./ckb-cli rpc get_peers | grep address:
+
+      - name: Get peer2 node ID
+        run: |
+          peer2_node_id=$(docker exec peer2 ./ckb-cli rpc local_node_info | grep node_id | awk '{print $2}')
+          echo "peer2_node_id=$peer2_node_id" >> "$GITHUB_ENV"
+
+      - name: Hole punching from peer1 to peer2
+        run: |
+          docker exec peer1 curl -X POST http://127.0.0.1:8114 \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "id": 2,
+              "jsonrpc": "2.0",
+              "method": "hole_punching",
+              "params": ["'"${{ env.peer2_node_id }}"'"]
+            }' && echo
