@@ -172,6 +172,31 @@ jobs:
               exit 1
             }
           
+            echo "Adding stun_server as peer to peer1 and peer2..."
+            docker exec peer1 curl -X POST http://127.0.0.1:8114 \
+              -H 'Content-Type: application/json' \
+              -d '{
+            "id": 1,
+            "jsonrpc": "2.0",
+            "method": "add_node",
+            "params": [
+              "'"${{ env.stun_server_node_id }}"'",
+              "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
+            ]
+            }' || true
+          
+            docker exec peer2 curl -X POST http://127.0.0.1:8114 \
+              -H 'Content-Type: application/json' \
+              -d '{
+            "id": 1,
+            "jsonrpc": "2.0",
+            "method": "add_node",
+            "params": [
+              "'"${{ env.stun_server_node_id }}"'",
+              "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
+            ]
+            }' || true
+          
             echo "Checking peers:"
             docker exec peer1 ./ckb-cli rpc get_peers | grep address: || true
             docker exec peer2 ./ckb-cli rpc get_peers | grep address: || true
