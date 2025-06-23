@@ -10,7 +10,7 @@ on:
       max_retries:
         description: 'Maximum hole_punching retry attempts'
         required: false
-        default: '4'
+        default: '15'
 
 jobs:
   ipv4:
@@ -165,8 +165,8 @@ jobs:
               echo "Initial wait: 60 seconds..."
               sleep 60
             else
-              echo "Waiting 6 minutes before retrying (attempt $attempt)..."
-              sleep 360
+              echo "Waiting 1 minutes before retrying (attempt $attempt)..."
+              sleep 60
             fi
 
             echo "Checking last 20 lines of peer1 logs (attempt $attempt):"
