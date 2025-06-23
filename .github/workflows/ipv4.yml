@@ -1,0 +1,37 @@
+name: ipv4
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ipv4-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Containers
+        uses: actions/checkout@v3
+
+      - name: Run First Block
+        run: |
+          docker compose down --rmi all
+          docker compose up -d
+          docker exec stun_server /bin/ckb --version
+
+      - name: Configure Routing
+        run: |
+          stun_server_node_id=$(docker exec stun_server ./ckb-cli rpc local_node_info | grep node_id | awk '{print $2}')
+          echo "$stun_server_node_id"
+
+          stun_server_ip4=$(docker exec stun_server ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
+          echo "$stun_server_ip4"
+
+          nat1_gateway_ip4=$(docker exec nat1_gateway ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
+          echo "$nat1_gateway_ip4"
+
+          nat2_gateway_ip4=$(docker exec nat2_gateway ip -4 addr | grep 'inet' | grep 'eth0' | awk '{print $2}' | cut -d'/' -f1)
+          echo "$nat2_gateway_ip4"
+
+          docker exec peer1 sh -c "ip route del default && ip route add default via $nat1_gateway_ip4"
+          docker exec peer2 sh -c "ip route del default && ip route add default via $nat2_gateway_ip4"
+
+          docker exec peer1 sh -c "ip route"
+          docker exec peer2 sh -c "ip route"
