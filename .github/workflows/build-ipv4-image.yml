@@ -23,6 +23,8 @@ jobs:
         working-directory: ./ckb
         run: |
           git checkout pkg/v${{ github.event.inputs.ckb_version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           curl -o commit.patch https://github.com/nervosnetwork/ckb/commit/0f266ee59b8b1b4658bfff28ac1fe084d2fa2bb6.patch
           git apply --check commit.patch
           git am < commit.patch
