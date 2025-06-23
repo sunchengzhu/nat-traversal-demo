@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  ipv4-setup:
+  ipv4:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
