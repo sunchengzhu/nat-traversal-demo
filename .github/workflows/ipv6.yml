@@ -105,100 +105,100 @@ jobs:
         run: |
           docker exec peer1 ping6 -c 4 ${{ env.stun_server_ip6 }}
           docker exec peer2 ping6 -c 4 ${{ env.stun_server_ip6 }}
-#
-#      - name: Add stun_server to peer1 and peer2
-#        run: |
-#          docker exec peer1 curl -X POST http://127.0.0.1:8114 \
-#            -H 'Content-Type: application/json' \
-#            -d '{
-#              "id": 1,
-#              "jsonrpc": "2.0",
-#              "method": "add_node",
-#              "params": [
-#                "'"${{ env.stun_server_node_id }}"'",
-#                "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
-#              ]
-#            }'
-#
-#          docker exec peer2 curl -X POST http://127.0.0.1:8114 \
-#            -H 'Content-Type: application/json' \
-#            -d '{
-#              "id": 1,
-#              "jsonrpc": "2.0",
-#              "method": "add_node",
-#              "params": [
-#                "'"${{ env.stun_server_node_id }}"'",
-#                "/ip4/${{ env.stun_server_ip4 }}/tcp/8115"
-#              ]
-#            }'
-#
-#      - name: Generate block on stun_server
-#        run: |
-#          docker exec stun_server curl -X POST http://127.0.0.1:8114 \
-#            -H "Content-Type: application/json" \
-#            -d '{"id": 2, "jsonrpc": "2.0", "method": "generate_block", "params": []}'
-#
-#      - name: Get peers on all nodes
-#        run: |
-#          docker exec peer1 ./ckb-cli rpc get_peers | grep address:
-#          docker exec peer2 ./ckb-cli rpc get_peers | grep address:
-#          docker exec stun_server ./ckb-cli rpc get_peers | grep address:
-#
-#      - name: Get peer2 node ID
-#        run: |
-#          peer2_node_id=$(docker exec peer2 ./ckb-cli rpc local_node_info | grep node_id | awk '{print $2}')
-#          echo "peer2_node_id=$peer2_node_id" >> "$GITHUB_ENV"
-#
-#      - name: Hole punching from peer1 to peer2
-#        run: |
-#          docker exec peer1 curl -X POST http://127.0.0.1:8114 \
-#            -H 'Content-Type: application/json' \
-#            -d '{
-#              "id": 2,
-#              "jsonrpc": "2.0",
-#              "method": "hole_punching",
-#              "params": ["'"${{ env.peer2_node_id }}"'"]
-#            }' && echo
-#
-#      - name: Wait for 'success' in Peer1 Logs (Retry with Hole Punching)
-#        run: |
-#          for attempt in 1 2 3 4; do
-#            if [ "$attempt" = "1" ]; then
-#              echo "Initial wait: 60 seconds..."
-#              sleep 60
-#            else
-#              echo "Waiting 5 minutes before retrying (attempt $attempt)..."
-#              sleep 305
-#            fi
-#
-#            echo "Checking last 20 lines of peer1 logs (attempt $attempt):"
-#            docker logs peer1 --tail 20 || true
-#
-#            if docker logs peer1 --tail 20 2>/dev/null | grep -q "NAT traversal success"; then
-#              echo "'NAT traversal success' found in peer1 logs. Done."
-#              exit 0
-#            fi
-#
-#            if [ "$attempt" -lt 4 ]; then
-#              echo "'success' not found. Re-executing hole punching..."
-#              docker exec peer1 curl -X POST http://127.0.0.1:8114 \
-#                -H 'Content-Type: application/json' \
-#                -d '{
-#                  "id": 2,
-#                  "jsonrpc": "2.0",
-#                  "method": "hole_punching",
-#                  "params": ["'"${{ env.peer2_node_id }}"'"]
-#                }' || true
-#              echo
-#            else
-#              echo "'success' not found after 3 attempts. Exiting with failure."
-#              exit 1
-#            fi
-#          done
-#
-#      - name: Get peers on all nodes again
-#        run: |
-#          echo "Peer1's peers:"
-#          docker exec peer1 ./ckb-cli rpc get_peers | grep address:
-#          echo "Peer2's peers:"
-#          docker exec peer2 ./ckb-cli rpc get_peers | grep address:
+
+      - name: Add stun_server to peer1 and peer2
+        run: |
+          docker exec peer1 curl -X POST http://127.0.0.1:8114 \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "id": 1,
+              "jsonrpc": "2.0",
+              "method": "add_node",
+              "params": [
+                "'"${{ env.stun_server_node_id }}"'",
+                "/ip6/'"$stun_server_ip6"'/tcp/8115"
+              ]
+            }'
+
+          docker exec peer2 curl -X POST http://127.0.0.1:8114 \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "id": 1,
+              "jsonrpc": "2.0",
+              "method": "add_node",
+              "params": [
+                "'"${{ env.stun_server_node_id }}"'",
+                "/ip6/'"$stun_server_ip6"'/tcp/8115"
+              ]
+            }'
+
+      - name: Generate block on stun_server
+        run: |
+          docker exec stun_server curl -X POST http://127.0.0.1:8114 \
+            -H "Content-Type: application/json" \
+            -d '{"id": 2, "jsonrpc": "2.0", "method": "generate_block", "params": []}'
+
+      - name: Get peers on all nodes
+        run: |
+          docker exec peer1 ./ckb-cli rpc get_peers | grep address:
+          docker exec peer2 ./ckb-cli rpc get_peers | grep address:
+          docker exec stun_server ./ckb-cli rpc get_peers | grep address:
+
+      - name: Get peer2 node ID
+        run: |
+          peer2_node_id=$(docker exec peer2 ./ckb-cli rpc local_node_info | grep node_id | awk '{print $2}')
+          echo "peer2_node_id=$peer2_node_id" >> "$GITHUB_ENV"
+
+      - name: Hole punching from peer1 to peer2
+        run: |
+          docker exec peer1 curl -X POST http://127.0.0.1:8114 \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "id": 2,
+              "jsonrpc": "2.0",
+              "method": "hole_punching",
+              "params": ["'"${{ env.peer2_node_id }}"'"]
+            }' && echo
+
+      - name: Wait for 'success' in Peer1 Logs (Retry with Hole Punching)
+        run: |
+          for attempt in 1 2 3 4; do
+            if [ "$attempt" = "1" ]; then
+              echo "Initial wait: 60 seconds..."
+              sleep 60
+            else
+              echo "Waiting 5 minutes before retrying (attempt $attempt)..."
+              sleep 305
+            fi
+
+            echo "Checking last 20 lines of peer1 logs (attempt $attempt):"
+            docker logs peer1 --tail 20 || true
+
+            if docker logs peer1 --tail 20 2>/dev/null | grep -q "NAT traversal success"; then
+              echo "'NAT traversal success' found in peer1 logs. Done."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 4 ]; then
+              echo "'success' not found. Re-executing hole punching..."
+              docker exec peer1 curl -X POST http://127.0.0.1:8114 \
+                -H 'Content-Type: application/json' \
+                -d '{
+                  "id": 2,
+                  "jsonrpc": "2.0",
+                  "method": "hole_punching",
+                  "params": ["'"${{ env.peer2_node_id }}"'"]
+                }' || true
+              echo
+            else
+              echo "'success' not found after 3 attempts. Exiting with failure."
+              exit 1
+            fi
+          done
+
+      - name: Get peers on all nodes again
+        run: |
+          echo "Peer1's peers:"
+          docker exec peer1 ./ckb-cli rpc get_peers | grep address:
+          echo "Peer2's peers:"
+          docker exec peer2 ./ckb-cli rpc get_peers | grep address:
