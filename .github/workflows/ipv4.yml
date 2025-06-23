@@ -142,3 +142,9 @@ jobs:
               "method": "hole_punching",
               "params": ["'"${{ env.peer2_node_id }}"'"]
             }' && echo
+
+      - name: Wait and Inspect Peer1 Logs
+        run: |
+          sleep 60
+          echo "Showing last 50 lines of peer1 logs:"
+          docker logs peer1 --tail 50
