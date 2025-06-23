@@ -148,21 +148,20 @@ jobs:
           for attempt in {1..10}; do
             echo "Attempt $attempt: waiting 60 seconds..."
             sleep 60
-          
+
             echo "Checking last 20 lines of peer1 logs:"
-            docker logs peer1 --tail 20
-          
-            if docker logs peer1 --tail 20 | grep -q "success"; then
+            docker logs peer1 --tail 20 || true
+
+            if docker logs peer1 --tail 20 2>/dev/null | grep -q "success"; then
               echo "'success' found in peer1 logs. Done."
               break
             fi
-          
+
             echo "'success' not found in logs. Restarting containers and redoing hole punching..."
-          
-            docker compose restart
-          
-            docker exec peer1 ./ckb-cli rpc get_peers | grep address:
-            docker exec peer2 ./ckb-cli rpc get_peers | grep address:
+
+            docker compose restart || true
+
+            sleep 5
 
             docker exec peer1 curl -X POST http://127.0.0.1:8114 \
               -H 'Content-Type: application/json' \
@@ -171,8 +170,8 @@ jobs:
                 "jsonrpc": "2.0",
                 "method": "hole_punching",
                 "params": ["'"${{ env.peer2_node_id }}"'"]
-              }' && echo
-          
+              }' || true
+
             if [ "$attempt" = "10" ]; then
               echo "Failed to find 'success' in peer1 logs after 10 attempts. Exiting."
               exit 1
