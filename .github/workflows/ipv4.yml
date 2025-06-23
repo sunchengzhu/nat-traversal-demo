@@ -159,8 +159,8 @@ jobs:
               echo "Initial wait: 60 seconds..."
               sleep 60
             else
-              echo "Waiting 5 minutes before retrying (attempt $attempt)..."
-              sleep 305
+              echo "Waiting 6 minutes before retrying (attempt $attempt)..."
+              sleep 360
             fi
 
             echo "Checking last 20 lines of peer1 logs (attempt $attempt):"
