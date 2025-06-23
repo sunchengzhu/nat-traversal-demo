@@ -55,6 +55,8 @@ jobs:
           
           exec /bin/ckb "$@"
           EOF
+          
+          cat docker/docker-entrypoint.sh
 
       - name: Build docker image
         working-directory: ./ckb
