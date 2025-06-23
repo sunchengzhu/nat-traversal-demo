@@ -2,6 +2,11 @@ name: IPv4
 
 on:
   workflow_dispatch:
+    inputs:
+      ckb_version:
+        description: 'CKB Version'
+        required: false
+        default: '0.202.0'
 
 jobs:
   ipv4:
@@ -9,6 +14,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+
+      - name: Replace CKB version in Dockerfile
+        run: |
+          echo "Using CKB version: ${{ github.event.inputs.ckb_version }}"
+          sed -i "s|registry.cn-hangzhou.aliyuncs.com/scz996/ckb:[0-9.]\+-ipv4|registry.cn-hangzhou.aliyuncs.com/scz996/ckb:${{ github.event.inputs.ckb_version }}-ipv4|g" Dockerfile
 
       - name: Start Containers
         run: |
