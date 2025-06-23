@@ -1,0 +1,32 @@
+name: Build IPv4 Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      ckb_version:
+        description: 'CKB version (tag or branch, like 0.202.0-rc1)'
+        required: false
+        default: '0.202.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Git and curl
+        run: sudo apt-get update && sudo apt-get install -y git curl
+
+      - name: Clone ckb repo
+        run: git clone https://github.com/nervosnetwork/ckb.git
+
+      - name: Checkout version and apply patch
+        working-directory: ./ckb
+        run: |
+          git checkout pkg/v${{ github.event.inputs.ckb_version }}
+          curl -o commit.patch https://github.com/nervosnetwork/ckb/commit/0f266ee59b8b1b4658bfff28ac1fe084d2fa2bb6.patch
+          git apply --check commit.patch
+          git am < commit.patch
+
+      - name: Show latest commit
+        working-directory: ./ckb
+        run: git log -1
