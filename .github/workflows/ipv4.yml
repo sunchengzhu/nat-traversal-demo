@@ -172,7 +172,7 @@ jobs:
             fi
 
             if [ "$attempt" -lt 4 ]; then
-              echo "'success' not found. Re-executing hole punching..."
+              echo "'NAT traversal success' not found. Re-executing hole punching..."
               docker exec peer1 curl -X POST http://127.0.0.1:8114 \
                 -H 'Content-Type: application/json' \
                 -d '{
