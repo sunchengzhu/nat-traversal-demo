@@ -13,10 +13,10 @@ RUN echo 'user ALL=(root) NOPASSWD:/usr/sbin/iptables' >> /etc/sudoers
 WORKDIR /app
 COPY --from=build /usr/src/nat-traversal/target/release/nat_traversal /app/nat-traversal
 
-RUN wget https://github.com/nervosnetwork/ckb-cli/releases/download/v1.11.0/ckb-cli_v1.11.0_aarch64-unknown-linux-gnu.tar.gz && \
-    tar xvf ckb-cli_v1.11.0_aarch64-unknown-linux-gnu.tar.gz && \
-    mv ckb-cli_v1.11.0_aarch64-unknown-linux-gnu/ckb-cli /app && \
-    rm -rf ckb-cli_v1.11.0_aarch64-unknown-linux-gnu*
+RUN wget https://github.com/nervosnetwork/ckb-cli/releases/download/v1.15.0/ckb-cli_v1.15.0_x86_64-unknown-centos-gnu.tar.gz && \
+    tar xvf ckb-cli_v1.15.0_x86_64-unknown-centos-gnu.tar.gz && \
+    mv ckb-cli_v1.15.0_x86_64-unknown-centos-gnu/ckb-cli /app && \
+    rm -rf ckb-cli_v1.15.0_x86_64-unknown-centos-gnu*
 
 COPY --from=ckb-image /bin/ckb /bin/ckb
 COPY --from=ckb-image /bin/docker-entrypoint.sh /entrypoint.sh
