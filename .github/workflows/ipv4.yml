@@ -180,6 +180,7 @@ jobs:
 
       - name: Get peers on all nodes again
         run: |
+          echo "Peer1's peers:"
           docker exec peer1 ./ckb-cli rpc get_peers | grep address:
+          echo "Peer2's peers:"
           docker exec peer2 ./ckb-cli rpc get_peers | grep address:
-          docker exec stun_server ./ckb-cli rpc get_peers | grep address:
