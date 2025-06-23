@@ -1,0 +1,90 @@
+name: Build IPv6 Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      ckb_version:
+        description: 'CKB version (tag or branch, like 0.202.0-rc1)'
+        required: false
+        default: '0.202.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Git and curl
+        run: sudo apt-get update && sudo apt-get install -y git curl
+
+      - name: Clone ckb repo
+        run: git clone https://github.com/nervosnetwork/ckb.git
+
+      - name: Checkout version and apply patch
+        working-directory: ./ckb
+        run: |
+          git checkout pkg/v${{ github.event.inputs.ckb_version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          curl -o commit.patch https://github.com/nervosnetwork/ckb/commit/0f266ee59b8b1b4658bfff28ac1fe084d2fa2bb6.patch
+          git apply --check commit.patch
+          git am < commit.patch
+
+      - name: Show latest commit
+        working-directory: ./ckb
+        run: git log -1
+
+      - name: Replace docker-entrypoint.sh
+        working-directory: ./ckb
+        run: |
+          cat > docker/docker-entrypoint.sh <<'EOF'
+          #!/bin/sh
+          
+          if [ "${1:-}" = "run" ] && ! [ -f ckb.toml ]; then
+            /bin/ckb init --chain "$CKB_CHAIN"
+            sed -i 's/^message = ".*"/message = "1747741045261"/' specs/dev.toml
+            sed -i 's/^filter = "info"$/filter = "info,ckb-network=debug"/' ckb.toml
+            sed -i 's/modules = \["Net", "Pool", "Miner", "Chain", "Stats", "Subscription", "Experiment", "Debug"\]/modules = \["Net", "Pool", "Miner", "Chain", "Stats", "Subscription", "Experiment", "Debug", "IntegrationTest"\]/' ckb.toml
+            sed -i 's|listen_addresses = \["/ip4/0.0.0.0/tcp/8115"\]|listen_addresses = \["/ip6/::/tcp/8115"\]|' ckb.toml
+            sed -i \
+              -e 's/^# \[block_assembler\]/[block_assembler]/' \
+              -e 's/^# code_hash = .*/code_hash = "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8"/' \
+              -e 's/^# args = .*/args = "0x1450a57f785967353b459d7a8b2248fa437c4c2f"/' \
+              -e 's/^# hash_type = .*/hash_type = "type"/' \
+              -e 's/^# message = .*/message = "0x"/' \
+              ckb.toml
+          fi
+          
+          exec /bin/ckb "$@"
+          EOF
+          
+          cat docker/docker-entrypoint.sh
+
+      - name: Patch Makefile to fix `-it` in docker run
+        working-directory: ./ckb
+        run: sed -i 's/docker run --rm -it nervos\/ckb:x64-/docker run --rm nervos\/ckb:x64-/g' Makefile
+
+      - name: Build docker image
+        working-directory: ./ckb
+        run: make docker
+
+      - name: Show docker images
+        run: docker images
+
+      - name: Login to Aliyun Docker Registry
+        env:
+          DOCKER_PASSWORD: CkbSync02
+        run: |
+          echo "$DOCKER_PASSWORD" | docker login --username "肥宅小竹" --password-stdin registry.cn-hangzhou.aliyuncs.com
+
+      - name: Tag and push image
+        run: |
+          VERSION=${{ github.event.inputs.ckb_version }}
+          REMOTE_TAG="registry.cn-hangzhou.aliyuncs.com/scz996/ckb:${VERSION}-ipv6"
+
+          IMAGE_ID=$(docker images | grep 'nervos/ckb' | awk '{print $3}' | head -n 1)
+
+          echo "Using image ID: $IMAGE_ID"
+          echo "Tagging as: $REMOTE_TAG"
+
+          docker tag "$IMAGE_ID" "$REMOTE_TAG"
+          docker push "$REMOTE_TAG"
