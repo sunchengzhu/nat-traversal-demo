@@ -7,6 +7,10 @@ on:
         description: 'CKB Version'
         required: false
         default: '0.202.0'
+      max_retries:
+        description: 'Maximum hole_punching retry attempts'
+        required: false
+        default: '4'
 
 jobs:
   ipv4:
@@ -154,8 +158,10 @@ jobs:
 
       - name: Wait for 'success' in Peer1 Logs (Retry with Hole Punching)
         run: |
-          for attempt in 1 2 3 4; do
-            if [ "$attempt" = "1" ]; then
+          max_retries=${{ github.event.inputs.max_retries }}
+          
+          for attempt in $(seq 1 "$max_retries"); do          
+          if [ "$attempt" = "1" ]; then
               echo "Initial wait: 60 seconds..."
               sleep 60
             else
@@ -171,7 +177,7 @@ jobs:
               exit 0
             fi
 
-            if [ "$attempt" -lt 4 ]; then
+            if [ "$attempt" -lt "$max_retries" ]; then
               echo "'NAT traversal success' not found. Re-executing hole punching..."
               docker exec peer1 curl -X POST http://127.0.0.1:8114 \
                 -H 'Content-Type: application/json' \
