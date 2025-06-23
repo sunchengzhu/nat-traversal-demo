@@ -9,7 +9,7 @@ on:
         default: '0.202.0'
 
 jobs:
-  ipv4:
+  ipv6:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
