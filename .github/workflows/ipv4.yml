@@ -183,7 +183,7 @@ jobs:
                 }' || true
               echo
             else
-              echo "'success' not found after 3 attempts. Exiting with failure."
+              echo "'NAT traversal success' not found after 3 attempts. Exiting with failure."
               exit 1
             fi
           done
