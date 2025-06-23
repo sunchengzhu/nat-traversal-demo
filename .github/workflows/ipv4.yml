@@ -161,15 +161,9 @@ jobs:
           max_retries=${{ github.event.inputs.max_retries }}
           
           for attempt in $(seq 1 "$max_retries"); do          
-          if [ "$attempt" = "1" ]; then
-              echo "Initial wait: 60 seconds..."
-              sleep 60
-            else
-              echo "Waiting 1 minutes before retrying (attempt $attempt)..."
-              sleep 60
-            fi
+            echo "Sleeping 60 seconds before attempt $attempt..."
+            sleep 60
 
-            echo "Checking last 20 lines of peer1 logs (attempt $attempt):"
             docker logs peer1 --tail 20 || true
 
             if docker logs peer1 --tail 20 2>/dev/null | grep -q "NAT traversal success"; then
