@@ -141,6 +141,7 @@ jobs:
           docker exec stun_server curl -X POST http://127.0.0.1:8114 \
             -H "Content-Type: application/json" \
             -d '{"id": 2, "jsonrpc": "2.0", "method": "generate_block", "params": []}'
+          sleep 3
 
       - name: Get peers on all nodes
         run: |
