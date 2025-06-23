@@ -145,48 +145,35 @@ jobs:
           peer2_node_id=$(docker exec peer2 ./ckb-cli rpc local_node_info | grep node_id | awk '{print $2}')
           echo "peer2_node_id=$peer2_node_id" >> "$GITHUB_ENV"
 
-      - name: Hole punching from peer1 to peer2
-        run: |
-          docker exec peer1 curl -X POST http://127.0.0.1:8114 \
-            -H 'Content-Type: application/json' \
-            -d '{
-              "id": 2,
-              "jsonrpc": "2.0",
-              "method": "hole_punching",
-              "params": ["'"${{ env.peer2_node_id }}"'"]
-            }' && echo
-
       - name: Wait for 'success' in Peer1 Logs (Retry with Hole Punching)
         run: |
           max_retries=${{ github.event.inputs.max_retries }}
-          
-          for attempt in $(seq 1 "$max_retries"); do          
-            echo "Sleeping 60 seconds before attempt $attempt..."
+      
+          for attempt in $(seq 1 "$max_retries"); do
+            echo "Attempt $attempt: Executing hole punching..."
+            docker exec peer1 curl -X POST http://127.0.0.1:8114 \
+              -H 'Content-Type: application/json' \
+              -d '{
+                "id": 2,
+                "jsonrpc": "2.0",
+                "method": "hole_punching",
+                "params": ["'"${{ env.peer2_node_id }}"'"]
+              }' || true
+            echo
+      
+            echo "Sleeping 60 seconds after hole punching (attempt $attempt)..."
             sleep 60
-
+      
             docker logs peer1 --tail 20 || true
-
+      
             if docker logs peer1 --tail 20 2>/dev/null | grep -q "NAT traversal success"; then
               echo "'NAT traversal success' found in peer1 logs. Done."
               exit 0
             fi
-
-            if [ "$attempt" -lt "$max_retries" ]; then
-              echo "'NAT traversal success' not found. Re-executing hole punching..."
-              docker exec peer1 curl -X POST http://127.0.0.1:8114 \
-                -H 'Content-Type: application/json' \
-                -d '{
-                  "id": 2,
-                  "jsonrpc": "2.0",
-                  "method": "hole_punching",
-                  "params": ["'"${{ env.peer2_node_id }}"'"]
-                }' || true
-              echo
-            else
-              echo "'NAT traversal success' not found after 3 attempts. Exiting with failure."
-              exit 1
-            fi
           done
+      
+          echo "'NAT traversal success' not found after $max_retries attempts. Exiting with failure."
+          exit 1
 
       - name: Get peers on all nodes again
         run: |
