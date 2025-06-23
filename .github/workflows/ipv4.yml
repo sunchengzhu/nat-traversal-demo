@@ -7,10 +7,10 @@ jobs:
   ipv4-setup:
     runs-on: ubuntu-latest
     steps:
-      - name: Start Containers
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Run First Block
+      - name: Start Containers
         run: |
           docker compose down --rmi all
           docker compose up -d
