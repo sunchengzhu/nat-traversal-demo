@@ -59,6 +59,7 @@ jobs:
           cat docker/docker-entrypoint.sh
 
       - name: Patch Makefile to fix `-it` in docker run
+        working-directory: ./ckb
         run: sed -i 's/docker run --rm -it nervos\/ckb:x64-/docker run --rm nervos\/ckb:x64-/g' Makefile
 
       - name: Build docker image
